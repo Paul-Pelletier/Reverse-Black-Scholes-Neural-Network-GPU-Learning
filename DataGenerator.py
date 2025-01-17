@@ -16,20 +16,20 @@ class DataGenerator:
             self.logMoneynessRange, self.maturityRange, self.volatilityRange, indexing="ij"
         )
         
-        # Add the option type as a separate dimension
-        logMoneyness = logMoneyness[..., np.newaxis]
-        maturity = maturity[..., np.newaxis]
-        volatility = volatility[..., np.newaxis]
-        
-        # Broadcast optionType to match the shape of the other grids
-        optionType = np.broadcast_to(self.optionType, logMoneyness.shape[:-1] + (len(self.optionType),))
-        
+        # Flatten the grids
+        logMoneyness = logMoneyness.ravel()
+        maturity = maturity.ravel()
+        volatility = volatility.ravel()
+
+        # Repeat optionType to match the size of the grids
+        optionType = np.tile(self.optionType, logMoneyness.shape[0] // len(self.optionType))
+
         # Combine all dimensions into a single matrix
         self.data = np.c_[
-            logMoneyness.ravel(),
-            maturity.ravel(),
-            volatility.ravel(),
-            optionType.ravel()
+            logMoneyness,
+            maturity,
+            volatility,
+            optionType
         ]
         return self.data
 
@@ -90,9 +90,9 @@ class DataGenerator:
             raise ValueError("Data and Greeks have not been generated. Call generateTargetSpace() and generateInitialSpace() first.")
         
         # Features (X) and Targets (y)
-        X = self.data  # Inputs: log(F/K), T, sigma, optionType
-        y = self.greeks  # Targets: Delta, Gamma, Vega, Theta
-        return X, y
+        y = self.data  # Inputs: log(F/K), T, sigma, optionType
+        x = self.greeks  # Targets: Delta, Gamma, Vega, Theta
+        return x, y
 
 
 if __name__ == '__main__':
