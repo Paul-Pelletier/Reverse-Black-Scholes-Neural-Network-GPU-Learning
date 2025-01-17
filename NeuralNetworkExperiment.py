@@ -20,7 +20,7 @@ class OptionDataset(Dataset):
 
 # Define the Neural Network
 class NeuralNetwork(nn.Module):
-    def __init__(self, input_size, output_size, hidden_size=256):  # Increased hidden size for complexity
+    def __init__(self, input_size, output_size, hidden_size=1024):  # Increased hidden size for complexity
         super(NeuralNetwork, self).__init__()
         self.model = nn.Sequential(
             nn.Linear(input_size, hidden_size),
@@ -111,25 +111,25 @@ if __name__ == "__main__":
     learning_rate = base_lr * scaling_factor
     print(f"Starting with batch size {batch_size} and learning rate {learning_rate:.6f}")
 
-    while batch_size <= max_batch_size:
-        print(f"\nTraining with batch size: {batch_size}")
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=20, pin_memory=True)
+    batch_size = max_batch_size
+    print(f"\nTraining with batch size: {batch_size}")
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=20, pin_memory=True)
 
-        # Initialize the model, loss function, and optimizer
-        input_size = X.shape[1]  # Number of features
-        output_size = y.shape[1]  # Number of target values (Greeks)
-        model = NeuralNetwork(input_size=input_size, output_size=output_size)
-        loss_fn = nn.MSELoss()
-        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    # Initialize the model, loss function, and optimizer
+    input_size = X.shape[1]  # Number of features
+    output_size = y.shape[1]  # Number of target values (Greeks)
+    model = NeuralNetwork(input_size=input_size, output_size=output_size)
+    loss_fn = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-        # Train the model
-        train_model(model, dataloader, optimizer, loss_fn, device, epochs, accumulation_steps=1)
+    # Train the model
+    train_model(model, dataloader, optimizer, loss_fn, device, epochs, accumulation_steps=1)
 
-        # Save the model after each batch size
-        torch.save(model.state_dict(), f"trained_model_batchsize_{batch_size}.pth")
+    # Save the model after each batch size
+    torch.save(model.state_dict(), f"trained_model_batchsize_{batch_size}.pth")
 
-        # Double the batch size and scale the learning rate accordingly
-        batch_size *= 2
-        learning_rate = base_lr * (batch_size / 512)
+    # Double the batch size and scale the learning rate accordingly
+    batch_size *= 2
+    learning_rate = base_lr * (batch_size / 512)
 
     print("Model training complete and saved!")
