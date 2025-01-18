@@ -6,7 +6,7 @@ class DataGenerator:
         self.logMoneynessRange = np.linspace(logMoneynessRange[0], logMoneynessRange[1], numberOfPoints)
         self.maturityRange = np.linspace(maturityRange[0], maturityRange[1], numberOfPoints)
         self.volatilityRange = np.linspace(volatilityRange[0], volatilityRange[1], numberOfPoints)
-        self.optionType = np.array([1, -1])  # Call (1) and put (-1)
+        self.optionType = np.array([1, -1])  # Call (1) and Put (-1)
         self.data = None
         self.greeks = None
 
@@ -15,14 +15,17 @@ class DataGenerator:
         logMoneyness, maturity, volatility = np.meshgrid(
             self.logMoneynessRange, self.maturityRange, self.volatilityRange, indexing="ij"
         )
-        
+
         # Flatten the grids
         logMoneyness = logMoneyness.ravel()
         maturity = maturity.ravel()
         volatility = volatility.ravel()
 
-        # Repeat optionType to match the size of the grids
-        optionType = np.tile(self.optionType, logMoneyness.shape[0] // len(self.optionType))
+        # Calculate the required length for optionType
+        total_points = len(logMoneyness)
+
+        # Repeat optionType to match the total number of points
+        optionType = np.tile(self.optionType, total_points // len(self.optionType) + 1)[:total_points]
 
         # Combine all dimensions into a single matrix
         self.data = np.c_[
@@ -32,6 +35,7 @@ class DataGenerator:
             optionType
         ]
         return self.data
+
 
     @staticmethod
     def black_scholes_greeks(data):
@@ -82,23 +86,28 @@ class DataGenerator:
 
         Outputs:
             X : np.ndarray
-                Input features: [log(F/K), T, sigma, optionType].
+                Input features: [Delta, Gamma, Vega, Theta, T, optionType].
             y : np.ndarray
-                Targets: [Delta, Gamma, Vega, Theta].
+                Targets: [log(F/K), sigma].
         """
         if self.data is None or self.greeks is None:
             raise ValueError("Data and Greeks have not been generated. Call generateTargetSpace() and generateInitialSpace() first.")
-        
-        # Features (X) and Targets (y)
-        y = self.data  # Inputs: log(F/K), T, sigma, optionType
-        x = self.greeks  # Targets: Delta, Gamma, Vega, Theta
-        return x, y
+
+        # Features (X): [Delta, Gamma, Vega, Theta, T, optionType]
+        X = np.c_[self.greeks, self.data[:, 1], self.data[:, 3]]  # Add T and optionType
+
+        # Targets (y): [log(F/K), sigma]
+        y = self.data[:, [0, 2]]
+        return X, y
 
 
 if __name__ == '__main__':
     # Instantiate the data generator
     generator = DataGenerator(
-        logMoneynessRange=[-1, 1], maturityRange=[0.1, 2], volatilityRange=[0.1, 0.5], numberOfPoints=5
+        logMoneynessRange=[-1, 1],
+        maturityRange=[0.1, 2],
+        volatilityRange=[0.1, 0.5],
+        numberOfPoints=5
     )
     
     # Generate data and Greeks

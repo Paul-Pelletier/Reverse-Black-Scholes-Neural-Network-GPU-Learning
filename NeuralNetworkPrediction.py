@@ -2,39 +2,75 @@ import torch
 from torch import nn
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from DataGenerator import DataGenerator  # Import your DataGenerator class
+from NeuralNetworkExperiment import NeuralNetwork  # Import your NeuralNetwork class
 
-# Define the Neural Network (same architecture as used during training)
-class NeuralNetwork(nn.Module):
-    def __init__(self, input_size, output_size, hidden_size=1024):
-        super(NeuralNetwork, self).__init__()
-        self.model = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, output_size)
-        )
 
-    def forward(self, x):
-        return self.model(x)
+def evaluate_model(model, dataloader, device):
+    """
+    Evaluates the model on the given dataloader.
+    Returns the true values and predictions for benchmarking.
+    """
+    model.eval()
+    true_values, predictions = [], []
 
-# Main function for loading, predicting, and evaluating
+    with torch.no_grad():
+        for X_batch, y_batch in dataloader:
+            X_batch = X_batch.to(device)
+            y_pred = model(X_batch).cpu().numpy()
+            predictions.append(y_pred)
+            true_values.append(y_batch.numpy())
+
+    predictions = np.vstack(predictions)
+    true_values = np.vstack(true_values)
+    return true_values, predictions
+
+
+def plot_results(true_values, predictions, feature_names):
+    """
+    Plots true vs. predicted values for each target feature.
+    """
+    num_features = true_values.shape[1]
+    plt.figure(figsize=(12, 6))
+
+    for i in range(num_features):
+        plt.subplot(1, num_features, i + 1)
+        plt.plot(true_values[:100, i], label=f"True {feature_names[i]}", alpha=0.7)
+        plt.plot(predictions[:100, i], label=f"Predicted {feature_names[i]}", linestyle="--")
+        plt.title(f"True vs Predicted {feature_names[i]}")
+        plt.xlabel("Sample Index")
+        plt.ylabel(feature_names[i])
+        plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
+def calculate_metrics(true_values, predictions):
+    """
+    Calculates performance metrics for benchmarking.
+    """
+    mse = mean_squared_error(true_values, predictions)
+    mae = mean_absolute_error(true_values, predictions)
+    r2 = r2_score(true_values, predictions)
+
+    print(f"Mean Squared Error (MSE): {mse:.6f}")
+    print(f"Mean Absolute Error (MAE): {mae:.6f}")
+    print(f"R² Score: {r2:.6f}")
+
+
 def main():
-    # GPU setup
+    # Device configuration
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # Load the trained model
-    input_size = 4  # Adjust based on the number of input features
-    output_size = 4  # Adjust based on the number of target features
+    input_size = 6  # Input features: [Delta, Gamma, Vega, Theta, T, optionType]
+    output_size = 2  # Outputs: [log(F/K), sigma]
     model = NeuralNetwork(input_size=input_size, output_size=output_size)
-    model.load_state_dict(torch.load("trained_model_bacthsize_16000.pth"))
+    model.load_state_dict(torch.load("trained_model_dynamic.pth"))
     model.to(device)
-    model.eval()  # Set the model to evaluation mode
     print("Model loaded successfully!")
 
     # Generate synthetic test data
@@ -49,39 +85,35 @@ def main():
     generator.generateInitialSpace()
     X_test, y_test = generator.get_data_for_nn()
 
-    # Convert test data to PyTorch tensors
-    X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
+    # Create DataLoader for the test set
+    from torch.utils.data import Dataset, DataLoader
 
-    # Make predictions
-    print("Making predictions...")
-    with torch.no_grad():
-        predictions = model(X_test_tensor).cpu().numpy()  # Move predictions to CPU
+    class OptionDataset(Dataset):
+        def __init__(self, X, y):
+            self.X = torch.tensor(X, dtype=torch.float32)
+            self.y = torch.tensor(y, dtype=torch.float32)
 
-    # Evaluate predictions
-    print("Evaluating predictions...")
-    mse = mean_squared_error(y_test, predictions)
-    print(f"Mean Squared Error: {mse:.6f}")
+        def __len__(self):
+            return len(self.X)
 
-    # Plot predictions vs. true values (for the first feature, e.g., Delta)
-    print("Plotting results...")
-    plt.figure(figsize=(10, 6))
-    plt.plot(y_test[:100, 0], label="True Delta")  # First output feature (Delta)
-    plt.plot(predictions[:100, 0], label="Predicted Delta", linestyle="--")
-    plt.title("True vs. Predicted Delta")
-    plt.xlabel("Sample Index")
-    plt.ylabel("Delta")
-    plt.legend()
-    plt.show()
+        def __getitem__(self, idx):
+            return self.X[idx], self.y[idx]
 
-    # Example for real-world data (optional)
-    print("Testing with real-world data...")
-    real_world_data = torch.tensor([[0.1, 0.5, 0.2, 1],  # Sample 1
-                                     [-0.2, 1.0, 0.25, -1]], dtype=torch.float32).to(device)
-    with torch.no_grad():
-        real_world_predictions = model(real_world_data).cpu().numpy()
+    test_dataset = OptionDataset(X_test, y_test)
+    test_loader = DataLoader(test_dataset, batch_size=512, shuffle=False, num_workers=20, pin_memory=True)
 
-    print("Real-World Predictions:")
-    print(real_world_predictions)
+    # Evaluate the model
+    print("Evaluating the model...")
+    true_values, predictions = evaluate_model(model, test_loader, device)
+
+    # Calculate and print performance metrics
+    print("\nPerformance Metrics:")
+    calculate_metrics(true_values, predictions)
+
+    # Plot results
+    feature_names = ["log(F/K)", "sigma"]
+    plot_results(true_values, predictions, feature_names)
+
 
 if __name__ == "__main__":
     main()
