@@ -86,9 +86,9 @@ def main():
     print("Generating training data...")
     generator = DataGenerator(
         logMoneynessRange=[log_fk_min, log_fk_max],
-        maturityRange=[0.1, 30],
+        maturityRange=[0.05, 30],
         volatilityRange=[iv_min, iv_max],
-        numberOfPoints=300
+        numberOfPoints=100
     )
     generator.generateTargetSpace()
     generator.generateInitialSpace()
@@ -102,7 +102,7 @@ def main():
 
     # Create PyTorch datasets and dataloaders
     train_dataset = OptionDataset(X_train, y_train, log_fk_min, log_fk_max, iv_min, iv_max)
-    train_loader = DataLoader(train_dataset, batch_size=512, shuffle=True, num_workers=20, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=2024, shuffle=True, num_workers=20, pin_memory=True)
 
     # Initialize the model, loss function, and optimizer
     input_size = X.shape[1]
