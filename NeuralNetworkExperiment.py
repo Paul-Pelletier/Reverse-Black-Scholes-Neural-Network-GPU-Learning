@@ -3,6 +3,7 @@ from torch import nn, optim
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 from DataGenerator import DataGenerator  # Import your DataGenerator class
+import matplotlib.pyplot as plt
 
 
 # Custom Dataset for PyTorch
@@ -35,6 +36,12 @@ class NeuralNetwork(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
             nn.Linear(hidden_size, output_size)
         )
 
@@ -42,20 +49,27 @@ class NeuralNetwork(nn.Module):
         return self.model(x)
 
 
-# Training Function
+# Training Function with Mixed Precision
 def train_model(model, dataloader, optimizer, loss_fn, device, epochs):
     model.to(device)
+    scaler = torch.cuda.amp.GradScaler()  # Use mixed precision
     loss_history = []
+
     for epoch in range(epochs):
         model.train()
         epoch_loss = 0.0
         for X_batch, y_batch in dataloader:
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+
             optimizer.zero_grad()
-            y_pred = model(X_batch)
-            loss = loss_fn(y_pred, y_batch)
-            loss.backward()
-            optimizer.step()
+            with torch.cuda.amp.autocast():  # Enable mixed precision
+                y_pred = model(X_batch)
+                loss = loss_fn(y_pred, y_batch)
+
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+
             epoch_loss += loss.item()
 
         avg_loss = epoch_loss / len(dataloader)
@@ -67,9 +81,12 @@ def train_model(model, dataloader, optimizer, loss_fn, device, epochs):
 
 # Main Calibration Script
 def main():
+    # Enable cuDNN benchmark for faster training
+    torch.backends.cudnn.benchmark = True
+
     # Scaling parameters
-    log_fk_min, log_fk_max = -0.1, 0.1
-    iv_min, iv_max = 0.1, 1
+    log_fk_min, log_fk_max = -0.3, 0.3
+    iv_min, iv_max = 0.1, 1.0
     scaling_params = {
         "log_fk_min": log_fk_min,
         "log_fk_max": log_fk_max,
@@ -88,7 +105,7 @@ def main():
         logMoneynessRange=[log_fk_min, log_fk_max],
         maturityRange=[0.05, 30],
         volatilityRange=[iv_min, iv_max],
-        numberOfPoints=100
+        numberOfPoints=300
     )
     generator.generateTargetSpace()
     generator.generateInitialSpace()
@@ -102,14 +119,20 @@ def main():
 
     # Create PyTorch datasets and dataloaders
     train_dataset = OptionDataset(X_train, y_train, log_fk_min, log_fk_max, iv_min, iv_max)
-    train_loader = DataLoader(train_dataset, batch_size=2024, shuffle=True, num_workers=20, pin_memory=True)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=2048,  # Increased batch size for faster GPU throughput
+        shuffle=True,
+        num_workers=20,  # Increased workers for parallel data loading
+        pin_memory=True
+    )
 
     # Initialize the model, loss function, and optimizer
     input_size = X.shape[1]
     output_size = 2
     model = NeuralNetwork(input_size=input_size, output_size=output_size)
     loss_fn = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.AdamW(model.parameters(), lr=0.001)  # AdamW for better weight decay handling
 
     # Train the model
     print("Training the model...")
@@ -119,6 +142,16 @@ def main():
     # Save the model
     torch.save(model.state_dict(), "trained_model_dynamic.pth")
     print("Model and scaling parameters saved successfully!")
+
+    # Plot loss history
+    plt.figure(figsize=(10, 6))
+    plt.plot(loss_history, label="Training Loss")
+    plt.title("Training Loss Over Epochs")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
 
 if __name__ == "__main__":

@@ -71,9 +71,9 @@ def validate_model():
     model.eval()
 
     # Generate synthetic validation data
-    fixed_sigma = 0.2
-    fixed_T = 1.0
-    log_fk_range = np.linspace(-0.05, 0.05, 100)  # Range for log(F/K)
+    fixed_sigma = 0.5
+    fixed_T = 10.0
+    log_fk_range = np.linspace(-0.15, 0.15, 100)  # Range for log(F/K)
     sensitivities = compute_sensitivities(log_fk_range, fixed_sigma, fixed_T, option_type=1)
 
     # Add T and option type as constant features

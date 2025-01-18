@@ -27,10 +27,9 @@ def denormalize_iv(normalized_iv):
     return (normalized_iv + 1) * (iv_max - iv_min) / 2 + iv_min
 
 
-# Backtesting Function
-def backtest_model(model, X, y):
+def backtest_model(model, X, y, batch_size=8192):
     """
-    Backtests the model predictions against actual values.
+    Backtests the model predictions against actual values in smaller batches.
 
     Parameters:
         model : NeuralNetwork
@@ -39,6 +38,8 @@ def backtest_model(model, X, y):
             Input features (normalized).
         y : np.ndarray
             True values (normalized).
+        batch_size : int
+            The batch size to use during prediction.
 
     Returns:
         dict : Contains true and predicted values (denormalized) for both log(F/K) and IV.
@@ -49,24 +50,39 @@ def backtest_model(model, X, y):
 
     # Convert to PyTorch tensor
     X_tensor = torch.tensor(X, dtype=torch.float32).to(device)
+    y_tensor = torch.tensor(y, dtype=torch.float32).to(device)
 
-    # Make predictions
+    num_samples = X_tensor.shape[0]
+    predictions = []
+    true_values = []
+
+    # Process in batches
     with torch.no_grad():
-        predictions = model(X_tensor).cpu().numpy()
+        for i in range(0, num_samples, batch_size):
+            batch_X = X_tensor[i:i + batch_size]
+            batch_y = y_tensor[i:i + batch_size]
+
+            # Make predictions for the current batch
+            batch_predictions = model(batch_X)
+            predictions.append(batch_predictions.cpu().numpy())
+            true_values.append(batch_y.cpu().numpy())
+
+    # Concatenate all batches
+    predictions = np.vstack(predictions)
+    true_values = np.vstack(true_values)
 
     # Denormalize predictions and true values
     log_fk_pred = denormalize_log_fk(predictions[:, 0])
     iv_pred = denormalize_iv(predictions[:, 1])
-    log_fk_true = denormalize_log_fk(y[:, 0])
-    iv_true = denormalize_iv(y[:, 1])
+    log_fk_true = denormalize_log_fk(true_values[:, 0])
+    iv_true = denormalize_iv(true_values[:, 1])
 
     return {
         "log_fk_true": log_fk_true,
         "log_fk_pred": log_fk_pred,
-        "iv_true": iv_true,
+        "iv_true": iv_true, 
         "iv_pred": iv_pred,
     }
-
 
 # Plot Predicted vs Actual
 def plot_backtest_results(results):
