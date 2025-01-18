@@ -136,7 +136,7 @@ def main():
 
     # Train the model
     print("Training the model...")
-    epochs = 10
+    epochs = 50
     loss_history = train_model(model, train_loader, optimizer, loss_fn, device, epochs)
 
     # Save the model
