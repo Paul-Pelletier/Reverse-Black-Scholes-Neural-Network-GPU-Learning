@@ -151,7 +151,7 @@ def main():
     # Initialize the model, loss function, and optimizer
     input_size = X.shape[1]
     output_size = 2
-    model = NeuralNetwork(input_size=input_size, output_size=output_size)
+    model = NeuralNetwork(input_size=input_size, output_size=output_size, hidden_size=1024)
     loss_fn = nn.MSELoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.001)
 
