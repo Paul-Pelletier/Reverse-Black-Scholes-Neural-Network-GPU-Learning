@@ -26,26 +26,6 @@ def denormalize_iv(normalized_iv):
     return (normalized_iv + 1) * (iv_max - iv_min) / 2 + iv_min
 
 
-def smile_volatility(log_fk, base_vol=0.2, skew=0.1, curvature=0.3):
-    """
-    Defines a smile-shaped volatility as a function of log-moneyness.
-
-    Parameters:
-        log_fk : np.ndarray
-            Log-moneyness values.
-        base_vol : float
-            Base level of volatility.
-        skew : float
-            Controls the skewness of the smile.
-        curvature : float
-            Controls the curvature of the smile.
-
-    Returns:
-        np.ndarray : Smile-shaped implied volatility values.
-    """
-    return base_vol + skew * log_fk + curvature * (log_fk ** 2)
-
-
 def backtest_model(model, X, y, batch_size=8192):
     """
     Backtests the model predictions against actual values in smaller batches.
@@ -169,38 +149,19 @@ def main():
     generator_constant.generateInitialSpace()
     X_constant, y_constant = generator_constant.get_data_for_nn()
 
+    # Normalize inputs and targets
     X_normalized = X_constant
     y_normalized_constant = np.column_stack([
         normalize_log_fk(y_constant[:, 0]),
         normalize_iv(y_constant[:, 1]),
     ])
 
+    # Backtest the model
     print("Backtesting model with constant volatility...")
     results_constant = backtest_model(model, X_normalized, y_normalized_constant)
+
+    # Plot results
     plot_backtest_results(results_constant, "(Constant Volatility)")
-
-    # Backtest with volatility smile
-    print("Generating volatility smile backtest data...")
-    generator_smile = DataGenerator(
-        logMoneynessRange=[log_fk_min, log_fk_max],
-        maturityRange=[0.1, 10],
-        volatilityRange=[iv_min, iv_max],
-        numberOfPoints=100
-    )
-    generator_smile.generateTargetSpace()
-    generator_smile.generateInitialSpace()  # <-- Add this line
-    X_smile, y_smile = generator_smile.get_data_for_nn()
-
-    # Apply smile to the volatility
-    y_smile[:, 1] = smile_volatility(y_smile[:, 0])  # Replace IV with smile-shaped IV
-    y_normalized_smile = np.column_stack([
-        normalize_log_fk(y_smile[:, 0]),
-        normalize_iv(y_smile[:, 1]),
-    ])
-
-    print("Backtesting model with volatility smile...")
-    results_smile = backtest_model(model, X_smile, y_normalized_smile)
-    plot_backtest_results(results_smile, "(Volatility Smile)")
 
 
 if __name__ == "__main__":

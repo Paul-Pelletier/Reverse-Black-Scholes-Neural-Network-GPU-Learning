@@ -2,7 +2,7 @@ import torch
 from torch import nn, optim
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
-from DataGenerator import DataGenerator  # Import your DataGenerator class
+from DataGenerator import DataGenerator
 import matplotlib.pyplot as plt
 
 
@@ -104,8 +104,8 @@ def main():
     generator = DataGenerator(
         logMoneynessRange=[log_fk_min, log_fk_max],
         maturityRange=[0.05, 30],
-        volatilityRange=[iv_min, iv_max],  # Specify fixed volatility range
-        numberOfPoints=100  # Higher resolution
+        volatilityRange=[iv_min, iv_max],
+        numberOfPoints=200  # Increased resolution
     )
     generator.generateTargetSpace()
     generator.generateInitialSpace()
@@ -121,9 +121,9 @@ def main():
     train_dataset = OptionDataset(X_train, y_train, log_fk_min, log_fk_max, iv_min, iv_max)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=2048,  # Increased batch size for faster GPU throughput
+        batch_size=2048,
         shuffle=True,
-        num_workers=5,  # Increased workers for parallel data loading
+        num_workers=5,
         pin_memory=True
     )
 
@@ -132,7 +132,7 @@ def main():
     output_size = 2
     model = NeuralNetwork(input_size=input_size, output_size=output_size)
     loss_fn = nn.MSELoss()
-    optimizer = optim.AdamW(model.parameters(), lr=0.001)  # AdamW for better weight decay handling
+    optimizer = optim.AdamW(model.parameters(), lr=0.001)  # AdamW optimizer
 
     # Train the model
     print("Training the model...")

@@ -71,8 +71,8 @@ def validate_model():
     model.eval()
 
     # Generate synthetic validation data
-    fixed_sigma = 0.3
-    fixed_T = 10.0
+    fixed_sigma = 0.3  # Constant volatility
+    fixed_T = 10.0  # Fixed maturity
     log_fk_range = np.linspace(-0.15, 0.15, 100)  # Range for log(F/K)
     sensitivities = compute_sensitivities(log_fk_range, fixed_sigma, fixed_T, option_type=1)
 
@@ -111,8 +111,8 @@ def validate_model():
     plt.grid(True)
 
     plt.subplot(1, 2, 2)
-    plt.plot(log_fk_range, [1] * len(log_fk_range), 'r--', label="True sigma")
-    plt.plot(log_fk_range, predicted_sigma/fixed_sigma, 'b-', label="Predicted sigma")
+    plt.plot(log_fk_range, [fixed_sigma] * len(log_fk_range), 'r--', label="True sigma")
+    plt.plot(log_fk_range, predicted_sigma, 'b-', label="Predicted sigma")
     plt.title("Sigma: True vs Predicted")
     plt.xlabel("True log(F/K)")
     plt.ylabel("Predicted Sigma")
