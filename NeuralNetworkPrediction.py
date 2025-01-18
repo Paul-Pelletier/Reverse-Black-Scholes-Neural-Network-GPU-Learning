@@ -1,122 +1,150 @@
 import torch
-from torch import nn
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from DataGenerator import DataGenerator  # Import your DataGenerator class
 from NeuralNetworkExperiment import NeuralNetwork  # Import your NeuralNetwork class
+from DataGenerator import DataGenerator  # Import your DataGenerator class
 
 
-# Define the PyTorch Dataset
-class OptionDataset(torch.utils.data.Dataset):
-    def __init__(self, X, y):
-        self.X = torch.tensor(X, dtype=torch.float32)
-        self.y = torch.tensor(y, dtype=torch.float32)
+# Load scaling parameters
+scaling_params = np.load("scaling_params.npy", allow_pickle=True).item()
+log_fk_min = scaling_params["log_fk_min"]
+log_fk_max = scaling_params["log_fk_max"]
+iv_min = scaling_params["iv_min"]
+iv_max = scaling_params["iv_max"]
 
-    def __len__(self):
-        return len(self.X)
+# Normalization and Denormalization functions
+def normalize_log_fk(log_fk):
+    return 2 * (log_fk - log_fk_min) / (log_fk_max - log_fk_min) - 1
 
-    def __getitem__(self, idx):
-        return self.X[idx], self.y[idx]
+def normalize_iv(iv):
+    return 2 * (iv - iv_min) / (iv_max - iv_min) - 1
+
+def denormalize_log_fk(normalized_log_fk):
+    return (normalized_log_fk + 1) * (log_fk_max - log_fk_min) / 2 + log_fk_min
+
+def denormalize_iv(normalized_iv):
+    return (normalized_iv + 1) * (iv_max - iv_min) / 2 + iv_min
 
 
-# Evaluate Model
-def evaluate_model(model, dataloader, device):
+# Backtesting Function
+def backtest_model(model, X, y):
     """
-    Evaluates the model on the given dataloader.
-    Returns the true values and predictions for benchmarking.
+    Backtests the model predictions against actual values.
+
+    Parameters:
+        model : NeuralNetwork
+            The trained PyTorch model.
+        X : np.ndarray
+            Input features (normalized).
+        y : np.ndarray
+            True values (normalized).
+
+    Returns:
+        dict : Contains true and predicted values (denormalized) for both log(F/K) and IV.
     """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
     model.eval()
-    true_values, predictions = [], []
 
+    # Convert to PyTorch tensor
+    X_tensor = torch.tensor(X, dtype=torch.float32).to(device)
+
+    # Make predictions
     with torch.no_grad():
-        for X_batch, y_batch in dataloader:
-            X_batch = X_batch.to(device)
-            y_pred = model(X_batch).cpu().numpy()
-            predictions.append(y_pred)
-            true_values.append(y_batch.numpy())
+        predictions = model(X_tensor).cpu().numpy()
 
-    predictions = np.vstack(predictions)
-    true_values = np.vstack(true_values)
-    return true_values, predictions
+    # Denormalize predictions and true values
+    log_fk_pred = denormalize_log_fk(predictions[:, 0])
+    iv_pred = denormalize_iv(predictions[:, 1])
+    log_fk_true = denormalize_log_fk(y[:, 0])
+    iv_true = denormalize_iv(y[:, 1])
+
+    return {
+        "log_fk_true": log_fk_true,
+        "log_fk_pred": log_fk_pred,
+        "iv_true": iv_true,
+        "iv_pred": iv_pred,
+    }
 
 
-# Plot Results
-def plot_results(true_values, predictions, feature_names):
+# Plot Predicted vs Actual
+def plot_backtest_results(results):
     """
-    Plots true vs. predicted values for each target feature.
+    Plots Predicted vs Actual for log(F/K) and IV.
+
+    Parameters:
+        results : dict
+            Contains true and predicted values for log(F/K) and IV.
     """
-    num_features = true_values.shape[1]
+    log_fk_true = results["log_fk_true"]
+    log_fk_pred = results["log_fk_pred"]
+    iv_true = results["iv_true"]
+    iv_pred = results["iv_pred"]
+
+    # Plot for log(F/K)
     plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.scatter(log_fk_true, log_fk_pred, alpha=0.6, label="Predicted vs Actual")
+    plt.plot([log_fk_true.min(), log_fk_true.max()],
+             [log_fk_true.min(), log_fk_true.max()],
+             color="red", linestyle="--", linewidth=2, label="Perfect Fit")
+    plt.title("Backtest Results: log(F/K)")
+    plt.xlabel("Actual log(F/K)")
+    plt.ylabel("Predicted log(F/K)")
+    plt.legend()
+    plt.grid(True)
 
-    for i in range(num_features):
-        plt.subplot(1, num_features, i + 1)
-        plt.plot(true_values[:100, i], label=f"True {feature_names[i]}", alpha=0.7)
-        plt.plot(predictions[:100, i], label=f"Predicted {feature_names[i]}", linestyle="--")
-        plt.title(f"True vs Predicted {feature_names[i]}")
-        plt.xlabel("Sample Index")
-        plt.ylabel(feature_names[i])
-        plt.legend()
+    # Plot for IV
+    plt.subplot(1, 2, 2)
+    plt.scatter(iv_true, iv_pred, alpha=0.6, label="Predicted vs Actual")
+    plt.plot([iv_true.min(), iv_true.max()],
+             [iv_true.min(), iv_true.max()],
+             color="red", linestyle="--", linewidth=2, label="Perfect Fit")
+    plt.title("Backtest Results: IV")
+    plt.xlabel("Actual IV")
+    plt.ylabel("Predicted IV")
+    plt.legend()
+    plt.grid(True)
 
     plt.tight_layout()
     plt.show()
 
 
-# Calculate Metrics
-def calculate_metrics(true_values, predictions):
-    """
-    Calculates performance metrics for benchmarking.
-    """
-    mse = mean_squared_error(true_values, predictions)
-    mae = mean_absolute_error(true_values, predictions)
-    r2 = r2_score(true_values, predictions)
-
-    print(f"Mean Squared Error (MSE): {mse:.6f}")
-    print(f"Mean Absolute Error (MAE): {mae:.6f}")
-    print(f"R² Score: {r2:.6f}")
-
-
-# Main Function
+# Main Backtesting Script
 def main():
-    # Device configuration
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
-
     # Load the trained model
-    input_size = 6  # Input features: [Delta, Gamma, Vega, Theta, T, optionType]
-    output_size = 2  # Outputs: [log(F/K), sigma]
+    input_size = 6
+    output_size = 2
     model = NeuralNetwork(input_size=input_size, output_size=output_size)
     model.load_state_dict(torch.load("trained_model_dynamic.pth"))
-    model.to(device)
-    print("Model loaded successfully!")
 
-    # Generate synthetic test data
-    print("Generating test data...")
+    # Generate synthetic backtest data
+    print("Generating backtest data...")
     generator = DataGenerator(
-        logMoneynessRange=[-0.1, 0.1],
+        logMoneynessRange=[log_fk_min, log_fk_max],
         maturityRange=[0.1, 10],
-        volatilityRange=[0.1, 0.5],
+        volatilityRange=[iv_min, iv_max],
         numberOfPoints=100
     )
     generator.generateTargetSpace()
     generator.generateInitialSpace()
-    X_test, y_test = generator.get_data_for_nn()
+    X, y = generator.get_data_for_nn()
 
-    # Create DataLoader for the test set
-    test_dataset = OptionDataset(X_test, y_test)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=512, shuffle=False, num_workers=4, pin_memory=True)
+    # Normalize inputs and true targets
+    X_normalized = X
+    y_normalized = np.column_stack([
+        normalize_log_fk(y[:, 0]),
+        normalize_iv(y[:, 1]),
+    ])
 
-    # Evaluate the model
-    print("Evaluating the model...")
-    true_values, predictions = evaluate_model(model, test_loader, device)
-
-    # Calculate and print performance metrics
-    print("\nPerformance Metrics:")
-    calculate_metrics(true_values, predictions)
+    # Backtest the model
+    print("Backtesting the model...")
+    results = backtest_model(model, X_normalized, y_normalized)
 
     # Plot results
-    feature_names = ["log(F/K)", "sigma"]
-    plot_results(true_values, predictions, feature_names)
+    print("Plotting backtest results...")
+    plot_backtest_results(results)
 
 
 if __name__ == "__main__":
