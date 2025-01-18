@@ -2,9 +2,9 @@ import torch
 from torch import nn, optim
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
-from DataGenerator import DataGenerator
+from DataGenerator import DataGenerator  # Import your DataGenerator class
 import matplotlib.pyplot as plt
-
+import os
 
 # Custom Dataset for PyTorch
 class OptionDataset(Dataset):
@@ -29,7 +29,7 @@ class OptionDataset(Dataset):
 
 # Define the Neural Network
 class NeuralNetwork(nn.Module):
-    def __init__(self, input_size, output_size, hidden_size=1024):
+    def __init__(self, input_size, output_size, hidden_size=2048):
         super(NeuralNetwork, self).__init__()
         self.model = nn.Sequential(
             nn.Linear(input_size, hidden_size),
@@ -50,12 +50,22 @@ class NeuralNetwork(nn.Module):
 
 
 # Training Function with Mixed Precision
-def train_model(model, dataloader, optimizer, loss_fn, device, epochs):
+def train_model(model, dataloader, optimizer, loss_fn, device, epochs, save_path):
     model.to(device)
     scaler = torch.cuda.amp.GradScaler()  # Use mixed precision
     loss_history = []
 
-    for epoch in range(epochs):
+    # Resume from the last checkpoint if available
+    start_epoch = 0
+    checkpoint_path = os.path.join(save_path, "checkpoint.pth")
+    if os.path.exists(checkpoint_path):
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        start_epoch = checkpoint["epoch"] + 1
+        print(f"Resuming training from epoch {start_epoch + 1}")
+
+    for epoch in range(start_epoch, epochs):
         model.train()
         epoch_loss = 0.0
         for X_batch, y_batch in dataloader:
@@ -76,6 +86,18 @@ def train_model(model, dataloader, optimizer, loss_fn, device, epochs):
         loss_history.append(avg_loss)
         print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.6f}")
 
+        # Save the model weights every 10 epochs
+        if (epoch + 1) % 10 == 0:
+            torch.save(model.state_dict(), os.path.join(save_path, f"model_epoch_{epoch + 1}.pth"))
+            print(f"Saved model weights at epoch {epoch + 1}")
+
+        # Save checkpoint for resuming
+        torch.save({
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict()
+        }, checkpoint_path)
+
     return loss_history
 
 
@@ -85,8 +107,8 @@ def main():
     torch.backends.cudnn.benchmark = True
 
     # Scaling parameters
-    log_fk_min, log_fk_max = -1, 1
-    iv_min, iv_max = 0.1, 0.5
+    log_fk_min, log_fk_max = -0.5, 0.5
+    iv_min, iv_max = 0.1, 0.9
     scaling_params = {
         "log_fk_min": log_fk_min,
         "log_fk_max": log_fk_max,
@@ -105,7 +127,7 @@ def main():
         logMoneynessRange=[log_fk_min, log_fk_max],
         maturityRange=[0.05, 30],
         volatilityRange=[iv_min, iv_max],
-        numberOfPoints=200  # Increased resolution
+        numberOfPoints=100
     )
     generator.generateTargetSpace()
     generator.generateInitialSpace()
@@ -132,16 +154,16 @@ def main():
     output_size = 2
     model = NeuralNetwork(input_size=input_size, output_size=output_size)
     loss_fn = nn.MSELoss()
-    optimizer = optim.AdamW(model.parameters(), lr=0.001)  # AdamW optimizer
+    optimizer = optim.AdamW(model.parameters(), lr=0.001)
+
+    # Save path for weights
+    save_path = "model_weights"
+    os.makedirs(save_path, exist_ok=True)
 
     # Train the model
     print("Training the model...")
     epochs = 100
-    loss_history = train_model(model, train_loader, optimizer, loss_fn, device, epochs)
-
-    # Save the model
-    torch.save(model.state_dict(), "trained_model_dynamic.pth")
-    print("Model and scaling parameters saved successfully!")
+    loss_history = train_model(model, train_loader, optimizer, loss_fn, device, epochs, save_path)
 
     # Plot loss history
     plt.figure(figsize=(10, 6))
