@@ -65,8 +65,8 @@ def validate_model():
     # Load the trained model
     input_size = 6  # Input: [Delta, Gamma, Vega, Theta, T, optionType]
     output_size = 2  # Output: [log(F/K), sigma]
-    model = NeuralNetwork(input_size=input_size, output_size=output_size)
-    model.load_state_dict(torch.load("trained_model_dynamic.pth"))
+    model = NeuralNetwork(input_size=input_size, output_size=output_size, hidden_size=1024)
+    model.load_state_dict(torch.load(".\model_weights\model_epoch_100.pth"))
     model.to(device)  # Move model to the device
     model.eval()
 

@@ -29,7 +29,7 @@ class OptionDataset(Dataset):
 
 # Define the Neural Network
 class NeuralNetwork(nn.Module):
-    def __init__(self, input_size, output_size, hidden_size=2048):
+    def __init__(self, input_size, output_size, hidden_size=1024):
         super(NeuralNetwork, self).__init__()
         self.model = nn.Sequential(
             nn.Linear(input_size, hidden_size),
@@ -100,15 +100,14 @@ def train_model(model, dataloader, optimizer, loss_fn, device, epochs, save_path
 
     return loss_history
 
-
 # Main Calibration Script
 def main():
     # Enable cuDNN benchmark for faster training
     torch.backends.cudnn.benchmark = True
 
     # Scaling parameters
-    log_fk_min, log_fk_max = -0.5, 0.5
-    iv_min, iv_max = 0.1, 0.9
+    log_fk_min, log_fk_max = -0.2, 0.2
+    iv_min, iv_max = 0.05, 0.9
     scaling_params = {
         "log_fk_min": log_fk_min,
         "log_fk_max": log_fk_max,
@@ -143,9 +142,9 @@ def main():
     train_dataset = OptionDataset(X_train, y_train, log_fk_min, log_fk_max, iv_min, iv_max)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=2048,
+        batch_size=4000,
         shuffle=True,
-        num_workers=5,
+        num_workers=10,
         pin_memory=True
     )
 

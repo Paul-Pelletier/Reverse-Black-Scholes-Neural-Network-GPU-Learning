@@ -1,3 +1,4 @@
+import os
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -19,25 +20,62 @@ def denormalize_log_fk(normalized_log_fk):
 def denormalize_iv(normalized_iv):
     return (normalized_iv + 1) * (iv_max - iv_min) / 2 + iv_min
 
+# Function to load the most recent weights from the specified folder
+def load_most_recent_weights(model, folder="model_weights"):
+    """
+    Load the most recent weights for the model from the specified folder.
+
+    Parameters:
+        model : torch.nn.Module
+            The model instance to load weights into.
+        folder : str
+            Folder containing the saved weight files.
+
+    Returns:
+        model : torch.nn.Module
+            Model with loaded weights.
+    """
+    weight_files = [
+        f for f in os.listdir(folder) if f.startswith("model_epoch_") and f.endswith(".pth")
+    ]
+    if not weight_files:
+        raise FileNotFoundError(f"No weight files found in the folder: {folder}")
+    
+    # Sort files by epoch number
+    weight_files.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
+    most_recent_file = weight_files[-1]
+    print(f"Loading weights from: {most_recent_file}")
+    model.load_state_dict(torch.load(os.path.join(folder, most_recent_file)))
+    return model
+
 # Main Plotting Script
 def main():
-    # Load the trained model
+    # Define model architecture
     input_size = 6
     output_size = 2
-    model = NeuralNetwork(input_size=input_size, output_size=output_size)
+    hidden_size = 1024  # Ensure this matches the training setup
+    model = NeuralNetwork(input_size=input_size, output_size=output_size, hidden_size=hidden_size)
 
     # Ensure all tensors are on the same device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-    model.load_state_dict(torch.load("trained_model_dynamic.pth"))
+
+    # Load the most recent weights from the "model_weights" folder
+    try:
+        model = load_most_recent_weights(model, folder="model_weights")
+        print("Model weights loaded successfully.")
+    except FileNotFoundError as e:
+        print(e)
+        return
+
     model.to(device)  # Move the model to the device
     model.eval()
 
     # Generate synthetic test data
     generator = DataGenerator(
-        logMoneynessRange=[log_fk_min, log_fk_max],
+        logMoneynessRange=[-0.1, 0.1],
         maturityRange=[0.1, 10],
-        volatilityRange=[iv_min, iv_max],
+        volatilityRange=[0.10, 0.50],
         numberOfPoints=100
     )
     generator.generateTargetSpace()
