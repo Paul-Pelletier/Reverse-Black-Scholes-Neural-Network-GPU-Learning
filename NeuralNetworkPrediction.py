@@ -1,7 +1,6 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from NeuralNetworkExperiment import NeuralNetwork  # Import your NeuralNetwork class
 from DataGenerator import DataGenerator  # Import your DataGenerator class
 
@@ -25,6 +24,26 @@ def denormalize_log_fk(normalized_log_fk):
 
 def denormalize_iv(normalized_iv):
     return (normalized_iv + 1) * (iv_max - iv_min) / 2 + iv_min
+
+
+def smile_volatility(log_fk, base_vol=0.2, skew=0.1, curvature=0.3):
+    """
+    Defines a smile-shaped volatility as a function of log-moneyness.
+
+    Parameters:
+        log_fk : np.ndarray
+            Log-moneyness values.
+        base_vol : float
+            Base level of volatility.
+        skew : float
+            Controls the skewness of the smile.
+        curvature : float
+            Controls the curvature of the smile.
+
+    Returns:
+        np.ndarray : Smile-shaped implied volatility values.
+    """
+    return base_vol + skew * log_fk + curvature * (log_fk ** 2)
 
 
 def backtest_model(model, X, y, batch_size=8192):
@@ -84,14 +103,17 @@ def backtest_model(model, X, y, batch_size=8192):
         "iv_pred": iv_pred,
     }
 
+
 # Plot Predicted vs Actual
-def plot_backtest_results(results):
+def plot_backtest_results(results, title_suffix=""):
     """
     Plots Predicted vs Actual for log(F/K) and IV.
 
     Parameters:
         results : dict
             Contains true and predicted values for log(F/K) and IV.
+        title_suffix : str
+            Suffix for plot titles to differentiate scenarios.
     """
     log_fk_true = results["log_fk_true"]
     log_fk_pred = results["log_fk_pred"]
@@ -105,7 +127,7 @@ def plot_backtest_results(results):
     plt.plot([log_fk_true.min(), log_fk_true.max()],
              [log_fk_true.min(), log_fk_true.max()],
              color="red", linestyle="--", linewidth=2, label="Perfect Fit")
-    plt.title("Backtest Results: log(F/K)")
+    plt.title(f"Backtest Results: log(F/K) {title_suffix}")
     plt.xlabel("Actual log(F/K)")
     plt.ylabel("Predicted log(F/K)")
     plt.legend()
@@ -117,7 +139,7 @@ def plot_backtest_results(results):
     plt.plot([iv_true.min(), iv_true.max()],
              [iv_true.min(), iv_true.max()],
              color="red", linestyle="--", linewidth=2, label="Perfect Fit")
-    plt.title("Backtest Results: IV")
+    plt.title(f"Backtest Results: IV {title_suffix}")
     plt.xlabel("Actual IV")
     plt.ylabel("Predicted IV")
     plt.legend()
@@ -135,32 +157,50 @@ def main():
     model = NeuralNetwork(input_size=input_size, output_size=output_size)
     model.load_state_dict(torch.load("trained_model_dynamic.pth"))
 
-    # Generate synthetic backtest data
-    print("Generating backtest data...")
-    generator = DataGenerator(
+    # Backtest with constant volatility
+    print("Generating constant volatility backtest data...")
+    generator_constant = DataGenerator(
         logMoneynessRange=[log_fk_min, log_fk_max],
         maturityRange=[0.1, 10],
         volatilityRange=[iv_min, iv_max],
         numberOfPoints=100
     )
-    generator.generateTargetSpace()
-    generator.generateInitialSpace()
-    X, y = generator.get_data_for_nn()
+    generator_constant.generateTargetSpace()
+    generator_constant.generateInitialSpace()
+    X_constant, y_constant = generator_constant.get_data_for_nn()
 
-    # Normalize inputs and true targets
-    X_normalized = X
-    y_normalized = np.column_stack([
-        normalize_log_fk(y[:, 0]),
-        normalize_iv(y[:, 1]),
+    X_normalized = X_constant
+    y_normalized_constant = np.column_stack([
+        normalize_log_fk(y_constant[:, 0]),
+        normalize_iv(y_constant[:, 1]),
     ])
 
-    # Backtest the model
-    print("Backtesting the model...")
-    results = backtest_model(model, X_normalized, y_normalized)
+    print("Backtesting model with constant volatility...")
+    results_constant = backtest_model(model, X_normalized, y_normalized_constant)
+    plot_backtest_results(results_constant, "(Constant Volatility)")
 
-    # Plot results
-    print("Plotting backtest results...")
-    plot_backtest_results(results)
+    # Backtest with volatility smile
+    print("Generating volatility smile backtest data...")
+    generator_smile = DataGenerator(
+        logMoneynessRange=[log_fk_min, log_fk_max],
+        maturityRange=[0.1, 10],
+        volatilityRange=[iv_min, iv_max],
+        numberOfPoints=100
+    )
+    generator_smile.generateTargetSpace()
+    generator_smile.generateInitialSpace()  # <-- Add this line
+    X_smile, y_smile = generator_smile.get_data_for_nn()
+
+    # Apply smile to the volatility
+    y_smile[:, 1] = smile_volatility(y_smile[:, 0])  # Replace IV with smile-shaped IV
+    y_normalized_smile = np.column_stack([
+        normalize_log_fk(y_smile[:, 0]),
+        normalize_iv(y_smile[:, 1]),
+    ])
+
+    print("Backtesting model with volatility smile...")
+    results_smile = backtest_model(model, X_smile, y_normalized_smile)
+    plot_backtest_results(results_smile, "(Volatility Smile)")
 
 
 if __name__ == "__main__":

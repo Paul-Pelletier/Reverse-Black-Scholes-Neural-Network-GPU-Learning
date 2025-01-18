@@ -85,8 +85,8 @@ def main():
     torch.backends.cudnn.benchmark = True
 
     # Scaling parameters
-    log_fk_min, log_fk_max = -0.3, 0.3
-    iv_min, iv_max = 0.1, 1.0
+    log_fk_min, log_fk_max = -1, 1
+    iv_min, iv_max = 0.1, 0.5
     scaling_params = {
         "log_fk_min": log_fk_min,
         "log_fk_max": log_fk_max,
@@ -104,8 +104,8 @@ def main():
     generator = DataGenerator(
         logMoneynessRange=[log_fk_min, log_fk_max],
         maturityRange=[0.05, 30],
-        volatilityRange=[iv_min, iv_max],
-        numberOfPoints=300
+        volatilityRange=[iv_min, iv_max],  # Specify fixed volatility range
+        numberOfPoints=100  # Higher resolution
     )
     generator.generateTargetSpace()
     generator.generateInitialSpace()
@@ -123,7 +123,7 @@ def main():
         train_dataset,
         batch_size=2048,  # Increased batch size for faster GPU throughput
         shuffle=True,
-        num_workers=20,  # Increased workers for parallel data loading
+        num_workers=5,  # Increased workers for parallel data loading
         pin_memory=True
     )
 
@@ -136,7 +136,7 @@ def main():
 
     # Train the model
     print("Training the model...")
-    epochs = 50
+    epochs = 100
     loss_history = train_model(model, train_loader, optimizer, loss_fn, device, epochs)
 
     # Save the model

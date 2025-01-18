@@ -36,7 +36,6 @@ class DataGenerator:
         ]
         return self.data
 
-
     @staticmethod
     def black_scholes_greeks(data):
         """
@@ -104,10 +103,10 @@ class DataGenerator:
 if __name__ == '__main__':
     # Instantiate the data generator
     generator = DataGenerator(
-        logMoneynessRange=[-0.1, 0.1],
+        logMoneynessRange=[-1, 1],
         maturityRange=[0.1, 2],
         volatilityRange=[0.1, 0.5],
-        numberOfPoints=5
+        numberOfPoints=100
     )
     
     # Generate data and Greeks
@@ -118,9 +117,9 @@ if __name__ == '__main__':
     X, y = generator.get_data_for_nn()
     
     print("Input Features (X):")
-    print(X)  # Display first 5 samples
+    print(X[:5])  # Display first 5 samples
     print("\nTarget Outputs (y):")
-    print(y)  # Display first 5 target rows
+    print(y[:5])  # Display first 5 target rows
     print("\nShapes:")
     print("X shape:", X.shape)
     print("y shape:", y.shape)
