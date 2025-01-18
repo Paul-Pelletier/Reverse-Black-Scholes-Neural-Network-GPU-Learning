@@ -20,7 +20,7 @@ class OptionDataset(Dataset):
 
 # Define the Neural Network
 class NeuralNetwork(nn.Module):
-    def __init__(self, input_size, output_size, hidden_size=1024):
+    def __init__(self, input_size, output_size, hidden_size=2048):
         super(NeuralNetwork, self).__init__()
         self.model = nn.Sequential(
             nn.Linear(input_size, hidden_size),
@@ -102,7 +102,7 @@ def main():
 
     # Train the model
     print("Training the model...")
-    epochs = 10
+    epochs = 20
     loss_history = train_model(model, train_loader, optimizer, loss_fn, device, epochs)
 
     # Save the model

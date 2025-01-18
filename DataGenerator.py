@@ -104,7 +104,7 @@ class DataGenerator:
 if __name__ == '__main__':
     # Instantiate the data generator
     generator = DataGenerator(
-        logMoneynessRange=[-1, 1],
+        logMoneynessRange=[-0.1, 0.1],
         maturityRange=[0.1, 2],
         volatilityRange=[0.1, 0.5],
         numberOfPoints=5
@@ -118,9 +118,9 @@ if __name__ == '__main__':
     X, y = generator.get_data_for_nn()
     
     print("Input Features (X):")
-    print(X[:5])  # Display first 5 samples
+    print(X)  # Display first 5 samples
     print("\nTarget Outputs (y):")
-    print(y[:5])  # Display first 5 target rows
+    print(y)  # Display first 5 target rows
     print("\nShapes:")
     print("X shape:", X.shape)
     print("y shape:", y.shape)
