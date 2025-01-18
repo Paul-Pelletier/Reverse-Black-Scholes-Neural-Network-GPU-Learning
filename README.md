@@ -1,0 +1,1 @@
+This package is an experimental package which intends to look at the possibility of a neural network to learn to infer the log(F/K) and Impplied Volatility from delta, gamma, vega, theta, residual maturity and finaly the option type (call or put). This should be easy using an RTX 4080
