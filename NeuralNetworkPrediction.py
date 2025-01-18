@@ -7,6 +7,20 @@ from DataGenerator import DataGenerator  # Import your DataGenerator class
 from NeuralNetworkExperiment import NeuralNetwork  # Import your NeuralNetwork class
 
 
+# Define the PyTorch Dataset
+class OptionDataset(torch.utils.data.Dataset):
+    def __init__(self, X, y):
+        self.X = torch.tensor(X, dtype=torch.float32)
+        self.y = torch.tensor(y, dtype=torch.float32)
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
+
+
+# Evaluate Model
 def evaluate_model(model, dataloader, device):
     """
     Evaluates the model on the given dataloader.
@@ -27,6 +41,7 @@ def evaluate_model(model, dataloader, device):
     return true_values, predictions
 
 
+# Plot Results
 def plot_results(true_values, predictions, feature_names):
     """
     Plots true vs. predicted values for each target feature.
@@ -47,6 +62,7 @@ def plot_results(true_values, predictions, feature_names):
     plt.show()
 
 
+# Calculate Metrics
 def calculate_metrics(true_values, predictions):
     """
     Calculates performance metrics for benchmarking.
@@ -60,6 +76,7 @@ def calculate_metrics(true_values, predictions):
     print(f"R² Score: {r2:.6f}")
 
 
+# Main Function
 def main():
     # Device configuration
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -76,31 +93,18 @@ def main():
     # Generate synthetic test data
     print("Generating test data...")
     generator = DataGenerator(
-        logMoneynessRange=[-1, 1],
-        maturityRange=[0.1, 2],
+        logMoneynessRange=[-0.1, 0.1],
+        maturityRange=[0.1, 10],
         volatilityRange=[0.1, 0.5],
-        numberOfPoints=50
+        numberOfPoints=100
     )
     generator.generateTargetSpace()
     generator.generateInitialSpace()
     X_test, y_test = generator.get_data_for_nn()
 
     # Create DataLoader for the test set
-    from torch.utils.data import Dataset, DataLoader
-
-    class OptionDataset(Dataset):
-        def __init__(self, X, y):
-            self.X = torch.tensor(X, dtype=torch.float32)
-            self.y = torch.tensor(y, dtype=torch.float32)
-
-        def __len__(self):
-            return len(self.X)
-
-        def __getitem__(self, idx):
-            return self.X[idx], self.y[idx]
-
     test_dataset = OptionDataset(X_test, y_test)
-    test_loader = DataLoader(test_dataset, batch_size=512, shuffle=False, num_workers=20, pin_memory=True)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=512, shuffle=False, num_workers=4, pin_memory=True)
 
     # Evaluate the model
     print("Evaluating the model...")

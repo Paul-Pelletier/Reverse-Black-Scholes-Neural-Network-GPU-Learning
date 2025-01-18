@@ -29,6 +29,10 @@ class NeuralNetwork(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
             nn.Linear(hidden_size, output_size)
         )
 
@@ -68,8 +72,8 @@ def main():
     # Generate synthetic data
     print("Generating training data...")
     generator = DataGenerator(
-        logMoneynessRange=[-1, 1],
-        maturityRange=[0.1, 2],
+        logMoneynessRange=[-0.1, 0.1],
+        maturityRange=[0.1, 10],
         volatilityRange=[0.1, 0.5],
         numberOfPoints=100
     )
